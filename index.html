@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PSR Calc</title>
+    <title>PSR Calc - How screwed are you?</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * {
             margin: 0;
@@ -26,7 +29,7 @@
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
-            max-width: 600px;
+            max-width: 700px;
             width: 100%;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             animation: slideIn 0.5s ease-out;
@@ -69,7 +72,14 @@
             font-size: 1.1em;
         }
 
-        input {
+        .help-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+            font-weight: normal;
+        }
+
+        input, select {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #e0e0e0;
@@ -79,7 +89,7 @@
             background: #f8f9fa;
         }
 
-        input:focus {
+        input:focus, select:focus {
             outline: none;
             border-color: #2a5298;
             background: white;
@@ -87,12 +97,22 @@
             box-shadow: 0 5px 15px rgba(42, 82, 152, 0.1);
         }
 
+        .currency-row {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .currency-select {
+            flex: 0 0 100px;
+        }
+
         .currency-input {
+            flex: 1;
             position: relative;
         }
 
-        .currency-input::before {
-            content: '£';
+        .currency-symbol {
             position: absolute;
             left: 16px;
             top: 50%;
@@ -128,6 +148,41 @@
 
         button:active {
             transform: translateY(0);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f4f8;
+            border-radius: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .extension-fields {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #e8f4f8;
+            border-radius: 10px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .extension-fields.show {
+            display: block;
         }
 
         .results {
@@ -207,6 +262,15 @@
             h1 {
                 font-size: 2em;
             }
+
+            .currency-row {
+                flex-direction: column;
+            }
+
+            .currency-select {
+                flex: 1;
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -216,8 +280,18 @@
         <p class="subtitle">How screwed are you if you sold a certain player?</p>
         
         <div class="input-group">
+            <label>Currency</label>
+            <select id="currency" onchange="updateCurrencySymbols()">
+                <option value="£">£ GBP</option>
+                <option value="€">€ EUR</option>
+                <option value="$">$ USD</option>
+            </select>
+        </div>
+        
+        <div class="input-group">
             <label for="transferFee">Original Transfer Fee</label>
             <div class="currency-input">
+                <span class="currency-symbol">£</span>
                 <input type="number" id="transferFee" placeholder="50000000" min="0" step="1000000">
             </div>
         </div>
@@ -227,7 +301,38 @@
             <input type="number" id="contractLength" placeholder="5" min="1" max="10" step="1">
         </div>
         
-        <div class="input-group">
+        <div class="checkbox-group">
+            <input type="checkbox" id="hasExtension" onchange="toggleExtension()">
+            <label for="hasExtension">Player signed a contract extension</label>
+        </div>
+        
+        <div class="extension-fields" id="extensionFields">
+            <div class="input-group">
+                <label for="yearsBeforeExtension">
+                    Years at club before extension
+                    <div class="help-text">How many years passed before they signed the new contract</div>
+                </label>
+                <input type="number" id="yearsBeforeExtension" placeholder="3" min="0.5" step="0.5">
+            </div>
+            
+            <div class="input-group">
+                <label for="extensionLength">
+                    New contract length (years)
+                    <div class="help-text">Length of the extension contract</div>
+                </label>
+                <input type="number" id="extensionLength" placeholder="4" min="1" max="10" step="1">
+            </div>
+            
+            <div class="input-group">
+                <label for="yearsSinceExtension">
+                    Years since extension
+                    <div class="help-text">How many years have passed since signing the extension</div>
+                </label>
+                <input type="number" id="yearsSinceExtension" placeholder="1" min="0" step="0.5">
+            </div>
+        </div>
+        
+        <div class="input-group" id="simpleYearsGroup">
             <label for="yearsAtClub">Years Already at Club</label>
             <input type="number" id="yearsAtClub" placeholder="2" min="0" step="0.5">
         </div>
@@ -235,6 +340,7 @@
         <div class="input-group">
             <label for="salePrice">Potential Sale Price</label>
             <div class="currency-input">
+                <span class="currency-symbol">£</span>
                 <input type="number" id="salePrice" placeholder="35000000" min="0" step="1000000">
             </div>
         </div>
@@ -243,8 +349,13 @@
         
         <div id="results" class="results">
             <div class="result-item">
-                <span class="result-label">Annual Amortization:</span>
+                <span class="result-label">Original Annual Amortization:</span>
                 <span class="result-value" id="annualAmortization"></span>
+            </div>
+            
+            <div class="result-item" id="currentAmortizationRow" style="display: none;">
+                <span class="result-label">Current Annual Amortization:</span>
+                <span class="result-value" id="currentAmortization"></span>
             </div>
             
             <div class="result-item">
@@ -267,33 +378,93 @@
     </div>
 
     <script>
+        let currentCurrency = '£';
+        
+        function updateCurrencySymbols() {
+            currentCurrency = document.getElementById('currency').value;
+            const symbols = document.querySelectorAll('.currency-symbol');
+            symbols.forEach(symbol => {
+                symbol.textContent = currentCurrency;
+            });
+        }
+        
+        function toggleExtension() {
+            const hasExtension = document.getElementById('hasExtension').checked;
+            const extensionFields = document.getElementById('extensionFields');
+            const simpleYearsGroup = document.getElementById('simpleYearsGroup');
+            
+            if (hasExtension) {
+                extensionFields.classList.add('show');
+                simpleYearsGroup.style.display = 'none';
+            } else {
+                extensionFields.classList.remove('show');
+                simpleYearsGroup.style.display = 'block';
+            }
+        }
+        
         function calculatePSR() {
             try {
-                // Get input values
                 const transferFee = parseFloat(document.getElementById('transferFee').value) || 0;
                 const contractLength = parseFloat(document.getElementById('contractLength').value) || 1;
-                const yearsAtClub = parseFloat(document.getElementById('yearsAtClub').value) || 0;
                 const salePrice = parseFloat(document.getElementById('salePrice').value) || 0;
+                const hasExtension = document.getElementById('hasExtension').checked;
                 
-                // Validation
-                if (transferFee <= 0 || contractLength <= 0 || yearsAtClub < 0 || salePrice < 0) {
+                if (transferFee <= 0 || contractLength <= 0 || salePrice < 0) {
                     alert('Please enter valid positive numbers for all fields');
                     return;
                 }
                 
-                if (yearsAtClub > contractLength) {
-                    alert('Years at club cannot exceed original contract length');
-                    return;
+                let totalAmortized = 0;
+                let currentBookValue = 0;
+                let currentAmortizationRate = 0;
+                const originalAmortization = transferFee / contractLength;
+                
+                if (hasExtension) {
+                    const yearsBeforeExtension = parseFloat(document.getElementById('yearsBeforeExtension').value) || 0;
+                    const extensionLength = parseFloat(document.getElementById('extensionLength').value) || 1;
+                    const yearsSinceExtension = parseFloat(document.getElementById('yearsSinceExtension').value) || 0;
+                    
+                    if (yearsBeforeExtension > contractLength) {
+                        alert('Years before extension cannot exceed original contract length');
+                        return;
+                    }
+                    
+                    // Calculate amortization before extension
+                    const amortizedBeforeExtension = originalAmortization * yearsBeforeExtension;
+                    const bookValueAtExtension = transferFee - amortizedBeforeExtension;
+                    
+                    // New amortization rate after extension
+                    currentAmortizationRate = bookValueAtExtension / extensionLength;
+                    
+                    // Calculate total amortized including time since extension
+                    const amortizedSinceExtension = currentAmortizationRate * yearsSinceExtension;
+                    totalAmortized = amortizedBeforeExtension + amortizedSinceExtension;
+                    
+                    // Current book value
+                    currentBookValue = Math.max(transferFee - totalAmortized, 0);
+                    
+                    // Show current amortization rate
+                    document.getElementById('currentAmortizationRow').style.display = 'flex';
+                    document.getElementById('currentAmortization').textContent = formatCurrency(currentAmortizationRate);
+                } else {
+                    const yearsAtClub = parseFloat(document.getElementById('yearsAtClub').value) || 0;
+                    
+                    if (yearsAtClub > contractLength) {
+                        // Player is now on a rolling contract, fully amortized
+                        totalAmortized = transferFee;
+                        currentBookValue = 0;
+                    } else {
+                        totalAmortized = originalAmortization * yearsAtClub;
+                        currentBookValue = Math.max(transferFee - totalAmortized, 0);
+                    }
+                    
+                    document.getElementById('currentAmortizationRow').style.display = 'none';
                 }
                 
-                // Calculate values
-                const annualAmortization = transferFee / contractLength;
-                const totalAmortized = Math.min(annualAmortization * yearsAtClub, transferFee);
-                const currentBookValue = Math.max(transferFee - totalAmortized, 0);
                 const psrImpact = salePrice - currentBookValue;
                 
                 // Display results
-                document.getElementById('annualAmortization').textContent = formatCurrency(annualAmortization);
+                document.getElementById('annualAmortization').textContent = formatCurrency(originalAmortization);
                 document.getElementById('totalAmortized').textContent = formatCurrency(totalAmortized);
                 document.getElementById('currentBookValue').textContent = formatCurrency(currentBookValue);
                 
@@ -301,7 +472,7 @@
                 psrImpactElement.textContent = formatCurrency(psrImpact);
                 psrImpactElement.className = 'result-value ' + (psrImpact >= 0 ? 'profit' : 'loss');
                 
-                // Show results with animation
+                // Show results
                 document.getElementById('results').classList.add('show');
             } catch (error) {
                 console.error('Error calculating PSR:', error);
@@ -310,7 +481,7 @@
         }
         
         function formatCurrency(amount) {
-            return '£' + amount.toLocaleString('en-GB', {
+            return currentCurrency + amount.toLocaleString('en-GB', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0
             });
